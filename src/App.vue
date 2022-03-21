@@ -1,0 +1,214 @@
+<template>
+  <div id="app">
+    <h1 style="font-size:100px; margin:0; padding:0">ZK-NFT</h1>
+    <h3 style="">Anonymously prove you own an NFT</h3>
+    <div class="buttonGroup" style="margin-top: 2em;">
+      <button class="big-button" v-if="!this.identity_commit || !this.currentAccount" @click="connectWallet">Connect Wallet</button>
+
+      <button class="big-button" v-if="this.identity_commit && !this.joinState" @click="joinGroup">
+        Join Group
+        <b-loading :is-full-page="false" v-model="isLoading" :can-cancel="true"></b-loading>
+      </button>
+
+      <button class="big-button" v-else-if="this.joinState && !this.proof" @click="createProof">Create Proof</button>
+    </div>
+
+    <div class="walletConnect">
+      <p v-if="this.identity_commit" style="">🔐 {{ this.identity_commit }}</p>
+      <p v-if="this.currentAccount" style="">🟢 {{ this.currentAccount }}</p>
+    </div>
+
+    <div v-if="this.proof" class="" style="">
+      <div style="" class="">
+        <div class="field has-addons">
+          <button id="copyToClipboard" v-on:click.prevent="copyToClipboard" class="control button is-medium is-primary is-rounded">Copy 📋</button>
+
+            <p class="is-medium button control" v-if="!readMoreActivated" value={this.proof}>{{this.proof.slice(0, 50)}}...
+              <button class=" button is-medium is-rounded" v-if="!readMoreActivated" @click="activateReadMore"> expand...</button>
+            </p>
+            <span class="is-medium button control" v-if="readMoreActivated">{{this.proof}}</span>
+            <input type="hidden" id="proof" :value="this.proof">
+
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+</template>
+
+<script>
+import { ZkIdentity } from '@zk-kit/identity'
+// import { Semaphore } from "@zk-kit/protocols"
+import HelloWorld from './components/HelloWorld.vue'
+import { abi } from './testStake.json'
+import { ethers } from 'ethers'
+import axios from 'axios'
+import './assets/my.css';
+
+
+export default {
+  name: 'App',
+
+  data() {
+    return {
+      currentAccount: null,
+      contractAddress:
+        'set this to your contract address, if you have more than one contract create more specific variables(greeterAddress or votingAddress)',
+      contract: null,
+      identity_secret: null,
+      identity_commit: null,
+      client: null,
+      proof: null,
+      joinState: null,
+      readMoreActivated: false,
+      isLoading: false
+    }
+  },
+  methods: {
+    openLoading() {
+         this.isLoading = true
+         setTimeout(() => {
+             this.isLoading = false
+         }, 10 * 1000)
+     },
+    copyToClipboard() {
+        let textToCopy = document.querySelector('#proof')
+        textToCopy.setAttribute('type', 'text')
+        textToCopy.select()
+        try {
+            var successful = document.execCommand('copy');
+            var msg = successful ? 'successful' : 'unsuccessful';
+            this.$buefy.toast.open('Copied!');
+          } catch (err) {
+            this.$buefy.toast.open('Unable to copy :(');
+          }
+        textToCopy.setAttribute('type', 'hidden')
+        window.getSelection().removeAllRanges()
+    },
+    activateReadMore(){
+        this.readMoreActivated = true;
+    },
+    getZKIdentity() {
+      const identity = new ZkIdentity()
+      const identityCommitment = identity.genIdentityCommitment()
+      this.identity_secret = identity
+      this.identity_commit = identityCommitment
+      return identityCommitment
+    },
+    connectWallet: async function () {
+      try {
+        const { ethereum, injected } = window
+        console.log(window)
+        if (injected) {
+          console.log('connecting....')
+          const client = await injected.connect()
+          this.client = client
+          console.log(`client: ${client}`)
+          const ZKID = await client.getActiveIdentity()
+          // console.log(await client.getIdentityCommitments())
+          // console.log(await client.getActiveIdentity())
+          this.identity_commit = ZKID
+        }
+        if (!ethereum) {
+          alert('Get MetaMask!')
+          return
+        }
+
+        const provider = new ethers.providers.Web3Provider(ethereum, 'any')
+        await provider.send('eth_requestAccounts', [])
+        const signer = provider.getSigner()
+
+        console.log('Connected: ', await signer.getAddress())
+        const contract = new ethers.Contract(
+          '0x465f7Ac3Bd00948fE7Fb8939945dE1bFda62C873',
+          abi,
+          signer,
+        )
+
+        this.contract = contract
+        this.provider = provider
+        this.currentAccount = await signer.getAddress()
+      } catch (error) {
+        console.log(error)
+      }
+    },
+    joinGroup: async function () {
+      this.isLoading = true // loading spinner
+      // setTimeout(() => {
+      //     this.isLoading = false
+      // }, 10 * 1000)
+      let r = await this.contract.addDAOIdentity(
+        1,
+        ethers.BigNumber.from(`0x${this.identity_commit.toString()}`),
+      )
+      this.joinState = true
+      this.isLoading = false
+      // console.log(await r.wait())
+    },
+    createProof: async function () {
+      const circuitFilePath = 'http://localhost:8000/semaphore.wasm'
+      const zkeyFilePath = 'http://localhost:8000/semaphore_final.zkey'
+      let leaves = await this.contract.getGroupCommitments(1)
+
+      leaves = leaves.map((element) => element._hex.slice(2))
+      console.log(`leaves: ${leaves}`)
+
+      const storageArtifacts = {
+        leaves: leaves,
+        depth: 20,
+        leavesPerNode: 2,
+      }
+
+      try {
+        // let proof = await this.client.semaphoreProof(
+        //   '1',
+        //   'something',
+        //   circuitFilePath,
+        //   zkeyFilePath,
+        //   storageArtifacts,
+        // )
+        //
+        // proof = JSON.parse(proof)
+        // console.log('semaphore proof', proof.fullProof)
+        // const params = {
+        //   proof: proof.solidityProof,
+        //   nullifierHash: proof.fullProof.publicSignals.nullifierHash.toString(),
+        //   entityId: proof.fullProof.publicSignals.externalNullifier,
+        //   challenge: 'something',
+        // }
+        //
+        // console.log(params)
+        // const hexified = new Buffer.from(JSON.stringify(params)).toString('hex')
+        // this.proof = hexified
+        // console.log(hexified)
+
+        this.proof = "0x7b2270726f6f66223a5b22353432353232373033373035303334393431353934303039323538393138333439393230303338383831303731303036363236383733363637363733373235393035333537343132303639222c2234303339323330363730323239363838343035303934383834353137353238393932393639373437353532363937363133393833333431323034303737313236303230323135383635303031222c2231373130373533383030333931383033343230393538373337313631353932363530303135313937353031393339323233393638303835353434323339353034363436343333323938363839222c2234343237343239353639303939303132303736363932323235313333333534323836373236303332323930343936323539323036363433393239323735333236323338363135353836383738222c2232363830343632333430363739343733383938333530383637363238313132363036383236323939303135333535383433393935303633393537363131363231313533383630343239363332222c2233313635303130363236343133363532323833323038393938333232313536353534343838383638333631373639313131393537353836313835343339303735313031303235303131383838222c2234313733303339363636303231373031363632323631353338343431343237313739323839333335363838333037393638323035363038333033333238373035363031333639383635363130222c2237303434353834383830333032363338303837303930393635393232323533303139333733363131323234343733373535313534343039373536343131383237303637373331303533373833225d2c226e756c6c696669657248617368223a2239373433333534393632373136323530373139333238353736393235343834313839333733383232363739323237313338393339303532313937343733323335313831373933323038343032222c22656e746974794964223a2231222c226368616c6c656e6765223a226861686168616861227d"
+        this.readMoreActivated = false
+        this.$confetti.start();
+        setTimeout(() => {
+          this.$confetti.stop();
+       }, 5000);
+      } catch (e) {
+        console.error(e)
+      }
+    },
+  },
+}
+</script>
+
+<style>
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: center;
+  color: #2c3e50;
+  margin-top: 60px;
+  overflow-wrap: break-word;
+}
+
+
+
+
+</style>
