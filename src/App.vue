@@ -39,6 +39,12 @@
         </div>
     </div>
 
+      <footer class="footer">
+        <div class="content has-text-centered">
+        <p> <a href="https://dorahacks.io/buidl/2470">EthDenver 2022 Submission 🦄</a> </p>
+      </div>
+    </footer>
+
 
   </div>
 </template>
@@ -225,7 +231,13 @@ export default {
   overflow-wrap: break-word;
 }
 
-
+.footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 2.5rem;
+  font-size: 1rem;
+}
 
 
 </style>
