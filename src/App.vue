@@ -2,6 +2,7 @@
   <div id="app">
     <h1 style="font-size:100px; margin-top: 1em; padding:0"><b>ZK-NFT</b></h1>
     <h3 style="">Anonymously prove you own an NFT</h3>
+
     <div class="buttonGroup" style="margin-top: 2em;">
       <button class="big-button" v-if="!this.identity_commit" @click="connectWallet">Connect Wallet</button>
 
@@ -20,26 +21,22 @@
     </div>
 
     <div v-if="this.proof" class="" style="">
-      <div style="" class="">
-        <div class="">
+        <div class="" style="inline-size: 1050px; text-align:center; margin: auto; width: 80% ">
           <button id="copyToClipboard" v-on:click.prevent="copyToClipboard" class="control button is-medium is-primary is-rounded">Copy 📋</button>
+
           <button class=" button is-medium" v-if="!readMoreActivated" @click="activateReadMore"> expand</button>
+          <button class=" button is-medium" v-if="readMoreActivated" @click="activateReadMore"> less</button>
 
-            <!-- <p class="is-medium button control" v-if="!readMoreActivated" value={this.proof}>{{this.proof.slice(0, 50)}}...</p> -->
+            <b-message v-if="!readMoreActivated" >
+               {{this.proof.slice(0, 100)}}....
+           </b-message>
 
-            <b-notification v-if="!readMoreActivated" >
-               {{this.proof.slice(0, 50)}}....
-           </b-notification>
-
-           <b-notification style="" v-if="readMoreActivated" >
+           <b-message style="inline-size: 1000px; overflow-wrap: break-word; word-break: break-all;" v-if="readMoreActivated" >
               {{this.proof}}
-          </b-notification>
+          </b-message>
 
-            <!-- <span class="is-medium button control" v-if="readMoreActivated">{{this.proof}}</span> -->
             <input type="hidden" id="proof" :value="this.proof">
-
         </div>
-      </div>
     </div>
 
 
@@ -96,7 +93,7 @@ export default {
         window.getSelection().removeAllRanges()
     },
     activateReadMore(){
-        this.readMoreActivated = true;
+        this.readMoreActivated = !this.readMoreActivated;
     },
     getZKIdentity() {
       const identity = new ZkIdentity()
