@@ -1,12 +1,12 @@
 <template>
   <div id="app">
-    <h1 style="font-size:100px; margin:0; padding:0">ZK-NFT</h1>
+    <h1 style="font-size:100px; margin-top: 1em; padding:0"><b>ZK-NFT</b></h1>
     <h3 style="">Anonymously prove you own an NFT</h3>
     <div class="buttonGroup" style="margin-top: 2em;">
       <button class="big-button" v-if="!this.identity_commit" @click="connectWallet">Connect Wallet</button>
 
       <button class="big-button" v-if="this.identity_commit && !this.joinState" @click="joinGroup">
-        Join Group
+        Stake NFT
         <b-loading :is-full-page="false" v-model="isLoading" :can-cancel="true"></b-loading>
       </button>
 
@@ -14,24 +14,28 @@
     </div>
 
     <div class="walletConnect">
-      <p v-if="this.identity_commit" style="">🔐 {{ this.identity_commit }}</p>
-      <p v-if="this.currentAccount" style="">🟢 {{ this.currentAccount }}</p>
+      <b-tooltip label="Identity Commit" :delay="300" position="is-right"><p v-if="this.identity_commit" style="">🔐 {{ this.identity_commit }}</p></b-tooltip>
+      <br>
+      <b-tooltip label="Wallet Address" :delay="300" position="is-right"><p v-if="this.currentAccount" style="">🟢 {{ this.currentAccount }}</p></b-tooltip>
     </div>
 
     <div v-if="this.proof" class="" style="">
       <div style="" class="">
-        <div class="field has-addons">
+        <div class="">
           <button id="copyToClipboard" v-on:click.prevent="copyToClipboard" class="control button is-medium is-primary is-rounded">Copy 📋</button>
+          <button class=" button is-medium" v-if="!readMoreActivated" @click="activateReadMore"> expand</button>
 
-            <p class="is-medium button control" v-if="!readMoreActivated" value={this.proof}>{{this.proof.slice(0, 50)}}...
-              <button class=" button is-medium is-rounded" v-if="!readMoreActivated" @click="activateReadMore"> expand...</button>
-            </p>
+            <!-- <p class="is-medium button control" v-if="!readMoreActivated" value={this.proof}>{{this.proof.slice(0, 50)}}...</p> -->
 
-            <b-notification >
-               {{this.proof.slice(0, 50)}}
+            <b-notification v-if="!readMoreActivated" >
+               {{this.proof.slice(0, 50)}}....
            </b-notification>
 
-            <span class="is-medium button control" v-if="readMoreActivated">{{this.proof}}</span>
+           <b-notification style="" v-if="readMoreActivated" >
+              {{this.proof}}
+          </b-notification>
+
+            <!-- <span class="is-medium button control" v-if="readMoreActivated">{{this.proof}}</span> -->
             <input type="hidden" id="proof" :value="this.proof">
 
         </div>
@@ -107,16 +111,22 @@ export default {
         console.log(window)
         if (injected) {
           console.log('connecting....')
-          const client = await injected.connect()
-          this.client = client
-          console.log(`client: ${client}`)
-          const ZKID = await client.getActiveIdentity()
-          // console.log(await client.getIdentityCommitments())
-          // console.log(await client.getActiveIdentity())
-          this.identity_commit = ZKID
+          try {
+            const client = await injected.connect()
+            this.client = client
+            console.log(`Injected client: ${client}`)
+            const ZKID = await client.getActiveIdentity()
+            // console.log(await client.getIdentityCommitments())
+            // console.log(await client.getActiveIdentity())
+            this.identity_commit = ZKID
+          } catch (e) {
+            // should prompt metamask to open
+            this.$buefy.toast.open(`Need to connect Metamask and ZK-Keeper-Plugin`);
+            console.log(e)
+          }
         }
         if (!ethereum) {
-          alert('Get MetaMask!')
+          this.$buefy.toast.open('Get Metamask extension')
           return
         }
 
@@ -124,7 +134,7 @@ export default {
         await provider.send('eth_requestAccounts', [])
         const signer = provider.getSigner()
 
-        console.log('Connected: ', await signer.getAddress())
+        console.log('Connected Wallet Address: ', await signer.getAddress())
         const contract = new ethers.Contract(
           '0x465f7Ac3Bd00948fE7Fb8939945dE1bFda62C873',
           abi,
@@ -134,22 +144,27 @@ export default {
         this.contract = contract
         this.provider = provider
         this.currentAccount = await signer.getAddress()
-      } catch (error) {
-        console.log(error)
+      } catch (e) {
+        this.$buefy.toast.open(`Error: ${e}`)
       }
     },
     joinGroup: async function () {
-      this.isLoading = true // loading spinner
-      // setTimeout(() => {
-      //     this.isLoading = false
-      // }, 10 * 1000)
-      let r = await this.contract.addDAOIdentity(
-        1,
-        ethers.BigNumber.from(`0x${this.identity_commit.toString()}`),
-      )
-      this.joinState = true
-      this.isLoading = false
-      // console.log(await r.wait())
+      try {
+        this.isLoading = true // loading spinner
+        // setTimeout(() => {
+        //     this.isLoading = false
+        // }, 10 * 1000)
+        let r = await this.contract.addDAOIdentity(
+          1,
+          ethers.BigNumber.from(`0x${this.identity_commit.toString()}`),
+        )
+        this.joinState = true
+        this.isLoading = false
+        // console.log(await r.wait())
+      } catch (e) {
+        this.$buefy.toast.open(`Error: Unable to connect to wallet${e}`)
+      }
+
     },
     createProof: async function () {
       const circuitFilePath = 'http://localhost:8000/semaphore.wasm'
